@@ -1,0 +1,4 @@
+include_rules 
+
+: obj/*.o |> $(LD) %f -o %o |> $(OUTPUT)
+: tobj/*.o |> $(LD) -lboost_unit_test_framework %f -o %o |> unittest

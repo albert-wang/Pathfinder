@@ -1,0 +1,6 @@
+include_rules 
+CFLAGS += -I../include
+CFLAGS += -DTESTING -DBOOST_TEST_DYN_LINK
+
+: foreach ../tests/* |> !cc |> %B.o
+: foreach ../src/* |> !cc |> %B.o
