@@ -1,7 +1,7 @@
 Pathfinder
 =================
 
-A Heirarchal Pathfinding algorithm, based on [http://webdocs.cs.ualberta.ca/~mmueller/ps/hpastar.pdf](This paper).
+A Heirarchal Pathfinding algorithm, based on [http://webdocs.cs.ualberta.ca/~mmueller/ps/hpastar.pdf](http://webdocs.cs.ualberta.ca/~mmueller/ps/hpastar.pdf).
 Implemented with clearance values for different terrain types.
 
 
