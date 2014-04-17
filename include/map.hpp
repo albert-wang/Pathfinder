@@ -92,7 +92,7 @@ public:
 	size_t passable(const Index& index) const;
 
 	void debugDisplay(const OriginAndGoal& g) const;
-	std::vector<Portal> linkPositionAndPortals(const Index& ind) const;
+	std::vector<Portal> linkPositionAndPortals(const Index& ind, size_t size) const;
 	size_t portalPathfind(const std::vector<Portal>& origin, const std::vector<Portal>& goals) const;
 private:
 	size_t blockIndex(const Index& ind) const;
@@ -102,9 +102,12 @@ private:
 
 	void preprocess();
 	void createPortalsInBlock(Block& b, const Index& start, const Index& iter, Direction d, size_t iterations);
+	void simplifyBlockPortals(Block& p);
+	void simplifyGraph();
+
 	void innerblockPathfind(const Block& block);
 
-	size_t blockpathfind(size_t blockIndex, const Index& start, const Index& end) const;
+	size_t blockpathfind(size_t blockIndex, const Index& start, const Index& end, size_t size) const;
 
 	std::vector<boost::uint8_t> map;
 	std::vector<Block> blocks;

@@ -18,14 +18,14 @@ int main(int argc, char *argv[]) {
 	map.debugDisplay(goal);
 
 	std::cout << " Origin == \n";
-	std::vector<Portal> origins = map.linkPositionAndPortals(goal.origin);
+	std::vector<Portal> origins = map.linkPositionAndPortals(goal.origin, 1);
 	for (size_t i = 0; i < origins.size(); ++i)
 	{
 		std::cout << origins[i] << "\n";
 	}
 
 	std::cout << " Goal == \n";
-	std::vector<Portal> goals = map.linkPositionAndPortals(goal.goal);
+	std::vector<Portal> goals = map.linkPositionAndPortals(goal.goal, 1);
 	for (size_t i = 0; i < goals.size(); ++i)
 	{
 		std::cout << goals[i] << "\n";

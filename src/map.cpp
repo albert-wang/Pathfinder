@@ -1,9 +1,10 @@
 #include "map.hpp"
-
 #include <string>
 #include <algorithm>
 #include <cassert>
 #include <set>
+
+#include "logger.h"
 
 namespace
 {
@@ -210,6 +211,7 @@ void Map::createPortalsInBlock(Block& out, const Index& start, const Index& iter
 			p.direction = d;
 
 			bool found = false;
+			size_t maximumPortalPassability = 10;
 			for (size_t w = 1; w < iterations - i; ++w)
 			{
 				Index next = Index(current.x + iterate.x * w, current.y + iterate.y * w);
@@ -222,7 +224,7 @@ void Map::createPortalsInBlock(Block& out, const Index& start, const Index& iter
 					break;
 				}
 
-				pass = std::max(pass, nextPassable);
+				maximumPortalPassability = std::min(maximumPortalPassability, nextPassable);
 			}
 
 			if (!found)
@@ -231,7 +233,7 @@ void Map::createPortalsInBlock(Block& out, const Index& start, const Index& iter
 				i += iterations - i;
 			}
 
-			p.passibility = pass;
+			p.passibility = maximumPortalPassability;
 			out.portals.push_back(p);
 
 			GraphVertex vertex;
@@ -247,6 +249,31 @@ void Map::createPortalsInBlock(Block& out, const Index& start, const Index& iter
 		}
 	}
 }
+
+void Map::simplifyBlockPortals(Block& block)
+{
+	Rawr::log << "Starting portal simplification for index [" << block.index << "], Initial size: " << block.portals.size();
+	std::sort(block.portals.begin(), block.portals.end(), [this](const Portal& a, const Portal& b)
+	{
+		return a.start.index(width) < b.start.index(width);
+	});
+
+	//Remove identical portals
+	auto predicate = [](const Portal& a, const Portal& b)
+	{
+		return a.start == b.start &&
+			a.direction == b.direction &&
+			a.size == b.size;
+	};
+
+	block.portals.erase(std::unique(block.portals.begin(), block.portals.end(), predicate), block.portals.end());
+
+	//Collapse portals with
+	Rawr::log << " Resulting Size: " << block.portals.size();
+}
+
+void Map::simplifyGraph()
+{}
 
 struct IndexAndScore
 {
@@ -267,7 +294,7 @@ struct IndexAndScore
 //This finds a path completely within a single block.
 //Generally used to create a path between portals or between a point and another portal.
 //TODO: Passability and size.
-size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end) const
+size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end, size_t size) const
 {
 	Direction possible[8] = {
 		SOUTHWEST, SOUTH, SOUTHEAST, WEST, EAST, NORTHWEST, NORTH, NORTHEAST
@@ -275,6 +302,11 @@ size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end) const
 
 	std::vector<IndexAndScore> open;
 	std::set<size_t> closed;
+
+	if (passable(start) < size)
+	{
+		return 0;
+	}
 
 	IndexAndScore initial;
 	initial.index = start;
@@ -304,7 +336,7 @@ size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end) const
 				continue;
 			}
 
-			if (!passable(score.index))
+			if (passable(score.index) < size)
 			{
 				continue;
 			}
@@ -391,7 +423,7 @@ void Map::innerblockPathfind(const Block& block)
 		{
 			if (i != j)
 			{
-				size_t pathLength = blockpathfind(block.index, block.portals[i].start, block.portals[j].start);
+				size_t pathLength = blockpathfind(block.index, block.portals[i].start, block.portals[j].start, 1);
 				if (pathLength > 0)
 				{
 					GraphVertex vert;
@@ -405,7 +437,7 @@ void Map::innerblockPathfind(const Block& block)
 	}
 }
 
-std::vector<Portal> Map::linkPositionAndPortals(const Index& ind) const
+std::vector<Portal> Map::linkPositionAndPortals(const Index& ind, size_t size) const
 {
 	size_t bi = blockIndex(ind);
 	const Block& block = blocks[bi];
@@ -413,7 +445,7 @@ std::vector<Portal> Map::linkPositionAndPortals(const Index& ind) const
 	std::vector<Portal> result;
 	for (size_t i = 0; i < block.portals.size(); ++i)
 	{
-		size_t path = blockpathfind(bi, ind, block.portals[i].start);
+		size_t path = blockpathfind(bi, ind, block.portals[i].start, size);
 		if (path != 0)
 		{
 			result.push_back(block.portals[i]);
@@ -457,10 +489,8 @@ void Map::createBlockData(size_t bi)
 	createPortalsInBlock(block, Index(startX + BlockSize - 1, startY+1), Index(0, 1), NORTHEAST, BlockSize - 1);
 	createPortalsInBlock(block, Index(startX + BlockSize - 1, startY), Index(0, 1), SOUTHEAST, BlockSize - 1);
 
-
 	//Inner-block path computation and vertex emittal.
 	blocks.push_back(block);
-	innerblockPathfind(block);
 }
 
 void Map::preprocess()
@@ -474,6 +504,18 @@ void Map::preprocess()
 	{
 		createBlockData(i);
 	}
+
+	for (size_t i = 0; i < blocks.size(); ++i)
+	{
+		simplifyBlockPortals(blocks[i]);
+	}
+
+	for (size_t i = 0; i < blocks.size(); ++i)
+	{
+		innerblockPathfind(blocks[i]);
+	}
+
+	simplifyGraph();
 }
 
 void Map::debugDisplay(const OriginAndGoal& goal) const

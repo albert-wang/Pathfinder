@@ -1,6 +1,6 @@
 CPP = clang++
 LD  = clang++ -lboost_thread -lboost_system -lc++ -llua -lluabind
-CFLAGS = -Wall -Wno-unknown-pragmas -Wno-c++11-extensions -Wno-unused-variable -g 
+CFLAGS = -Wall -Wno-unknown-pragmas -Wno-c++11-extensions -Wno-unused-variable -g -std=c++11 -stdlib=libc++
 OUTPUT = croutine
 
 !cc = |> $(CPP) $(CFLAGS) -c %f -o %o |>
