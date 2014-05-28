@@ -28,7 +28,7 @@ namespace Engine
 			size_t computeActualAllocationSize(size_t n) const
 			{
 				if ((sizeof(T) * n) % 16 != 0)
-				{	
+				{
 					return (((sizeof(T) * n) / 16) + 1) * 16;
 				}
 				else
@@ -45,7 +45,7 @@ namespace Engine
 				assert(count > 0);
 
 				T * result = reinterpret_cast<T *>(current);
-				
+
 				//The current pointer is always resting at a multiple of 16 bytes.
 				current += computeActualAllocationSize<T>(count);
 				return result;
@@ -54,7 +54,7 @@ namespace Engine
 			template<typename T>
 			bool wasMostRecentAllocation(const T * b, size_t size) const
 			{
-				//Expected next pointer: 
+				//Expected next pointer:
 				const boost::uint8_t * base = reinterpret_cast<const boost::uint8_t *>(b);
 				base += computeActualAllocationSize<T>(size);
 				return base == current;
@@ -68,7 +68,7 @@ namespace Engine
 			void reset(boost::uint8_t * point);
 		private:
 			boost::uint8_t * base;
-			boost::uint8_t * current; 
+			boost::uint8_t * current;
 
 			size_t avaliableSpace;
 		};
@@ -138,7 +138,7 @@ namespace Engine
 			}
 
 			template<typename T>
-			T * createPOD() 
+			T * createPOD()
 			{
 				T * result = base->allocate<T>(1);
 				return result;

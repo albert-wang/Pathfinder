@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cassert>
 #include <set>
+#include <map>
 
 #include "logger.h"
+#include "genericastar.h"
 
 namespace
 {
@@ -273,95 +275,191 @@ void Map::simplifyBlockPortals(Block& block)
 }
 
 void Map::simplifyGraph()
-{}
-
-struct IndexAndScore
 {
-	Index index;
-	size_t score;
 
-	bool operator<(const IndexAndScore& o) const
+}
+
+//Block pathfinding policy.
+struct BlockFindPolicy : public Pathfinder::PathfindPolicy<BlockFindPolicy>
+{
+	typedef Index Element;
+	typedef size_t Hash;
+
+	BlockFindPolicy(const Index& start, const Index& end, size_t blockIndex, size_t width, size_t size, const Map * map)
+		:start(start)
+		,end(end)
+		,blockIndex(blockIndex)
+		,width(width)
+		,size(size)
+		,map(map)
+	{}
+
+	size_t startingCount()
 	{
-		return score > o.score;
+		return 1;
 	}
 
-	bool operator==(const IndexAndScore& o) const
+	const Index& startingPoint(size_t)
 	{
-		return index == o.index;
+		return start;
 	}
+
+	bool finished(const Index& s)
+	{
+		return s == end;
+	}
+
+	Hash hash(const Index& ind)
+	{
+		return ind.index(width);
+	}
+
+	size_t predict(const Index& s)
+	{
+		int diffx = static_cast<int>(s.x) - static_cast<int>(end.x);
+		int diffy = static_cast<int>(s.y) - static_cast<int>(end.y);
+		int diffz = static_cast<int>(s.z) - static_cast<int>(end.z);
+		return diffx * diffx + diffy * diffy + diffz * diffz;
+	}
+
+	size_t neighborCount(const Index& elem)
+	{
+		return 8;
+	}
+
+	Index neighbor(const Index& elem, size_t i)
+	{
+		Direction possible[8] = {
+			SOUTHWEST, SOUTH, SOUTHEAST, WEST, EAST, NORTHWEST, NORTH, NORTHEAST
+		};
+
+		return Index(elem.x + offsetX[possible[i]], elem.y + offsetY[possible[i]]);
+	}
+
+	bool passable(const Index& elem)
+	{
+		size_t w = map->passable(elem);
+		if (w < size)
+		{
+			return false;
+		}
+
+		if (map->blockIndex(elem) != blockIndex)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	Index start;
+	Index end;
+
+	size_t blockIndex;
+	size_t width;
+	size_t size;
+	const Map * map;
 };
+
+/*
+struct PortalPathfindPolicy : public Pathfinder::PathfindPolicy<PortalPathfindPolicy>
+{
+	typedef Portal Element;
+	typedef size_t Hash;
+
+	BlockFindPolicy(const std::vector<Portal>& start, const std::vector<Portal>& end, size_t width, const Map * map)
+		:start(start)
+		,end(end)
+		,width(width)
+		,map(map)
+	{}
+
+	size_t startingCount()
+	{
+		return start.size();
+	}
+
+	const Index& startingPoint(size_t i)
+	{
+		return start[i];
+	}
+
+	bool finished(const Portal& s)
+	{
+		return std::find(end.begin(), end.end(), s) != end.end();
+	}
+
+	Hash hash(const Portal& ind)
+	{
+		return ind.start.index(width);
+	}
+
+	size_t score(const Index& s, const Index& e)
+	{
+		int diffx = static_cast<int>(s.x) - static_cast<int>(e.x);
+		int diffy = static_cast<int>(s.y) - static_cast<int>(e.y);
+		int diffz = static_cast<int>(s.z) - static_cast<int>(e.z);
+		return diffx * diffx + diffy * diffy + diffz * diffz;
+	}
+
+	size_t predict(const Index& s)
+	{
+		size_t best = score(s, end[0]);
+
+		for (size_t i = 1; i < end.size(); ++i)
+		{
+			best = std::min(best, score(s, end[i]));
+		}
+
+		return best;
+	}
+
+	size_t neighborCount(const Portal& elem)
+	{
+
+	}
+
+	Index neighbor(const Index& elem, size_t i)
+	{
+		Direction possible[8] = {
+			SOUTHWEST, SOUTH, SOUTHEAST, WEST, EAST, NORTHWEST, NORTH, NORTHEAST
+		};
+
+		return Index(elem.x + offsetX[possible[i]], elem.y + offsetY[possible[i]]);
+	}
+
+	bool passable(const Index& elem)
+	{
+		size_t w = map->passable(elem);
+		if (w < size)
+		{
+			return false;
+		}
+
+		if (map->blockIndex(elem) != blockIndex)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	const std::vector<Portal>& start;
+	const std::vector<Portal>& end;
+
+	size_t width;
+	const Map * map;
+};
+*/
 
 //This finds a path completely within a single block.
 //Generally used to create a path between portals or between a point and another portal.
-//TODO: Passability and size.
-size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end, size_t size) const
+size_t Map::blockpathfind(size_t bi, const Index& start, const Index& end, size_t size, std::vector<Index> * foundPath) const
 {
-	Direction possible[8] = {
-		SOUTHWEST, SOUTH, SOUTHEAST, WEST, EAST, NORTHWEST, NORTH, NORTHEAST
-	};
-
-	std::vector<IndexAndScore> open;
-	std::set<size_t> closed;
-
-	if (passable(start) < size)
-	{
-		return 0;
-	}
-
-	IndexAndScore initial;
-	initial.index = start;
-	initial.score = 0;
-	open.push_back(initial);
-
-	while (!open.empty())
-	{
-		IndexAndScore target = open.back();
-		open.pop_back();
-
-		if (target.index == end)
-		{
-			return 1;
-		}
-
-		closed.insert(target.index.index(width));
-
-		//Add neighbors
-		for (size_t i = 0; i < 8; ++i)
-		{
-			IndexAndScore score;
-			score.index = Index(target.index.x + offsetX[possible[i]], target.index.y + offsetY[possible[i]]);
-
-			if (closed.find(score.index.index(width)) != closed.end())
-			{
-				continue;
-			}
-
-			if (passable(score.index) < size)
-			{
-				continue;
-			}
-
-			if (blockIndex(score.index) != bi)
-			{
-				continue;
-			}
-
-			int diffx = static_cast<int>(score.index.x) - static_cast<int>(end.x);
-			int diffy = static_cast<int>(score.index.y) - static_cast<int>(end.y);
-			score.score = diffx * diffx + diffy * diffy;
-
-			if (std::find(open.begin(), open.end(), score) == open.end())
-			{
-				open.push_back(score);
-			}
-		}
-
-		std::sort(open.begin(), open.end());
-	}
-
-	//Failed to find a path
-	return 0;
+	BlockFindPolicy policy(start, end, bi, width, size, this);
+	return Pathfinder::pathfind(policy, foundPath);
 }
+
 
 //This finds a path between two sets of portals.
 //TODO: Passability and size.
@@ -423,7 +521,7 @@ void Map::innerblockPathfind(const Block& block)
 		{
 			if (i != j)
 			{
-				size_t pathLength = blockpathfind(block.index, block.portals[i].start, block.portals[j].start, 1);
+				size_t pathLength = blockpathfind(block.index, block.portals[i].start, block.portals[j].start, 1, nullptr);
 				if (pathLength > 0)
 				{
 					GraphVertex vert;
@@ -445,7 +543,7 @@ std::vector<Portal> Map::linkPositionAndPortals(const Index& ind, size_t size) c
 	std::vector<Portal> result;
 	for (size_t i = 0; i < block.portals.size(); ++i)
 	{
-		size_t path = blockpathfind(bi, ind, block.portals[i].start, size);
+		size_t path = blockpathfind(bi, ind, block.portals[i].start, size, nullptr);
 		if (path != 0)
 		{
 			result.push_back(block.portals[i]);
@@ -514,6 +612,8 @@ void Map::preprocess()
 	{
 		innerblockPathfind(blocks[i]);
 	}
+
+	std::cout << "Graph: " << graph.size() << "\n";
 
 	simplifyGraph();
 }

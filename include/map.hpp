@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <boost/cstdint.hpp>
+#include <boost/static_assert.hpp>
 #include <iostream>
 
 enum Direction
@@ -12,6 +13,8 @@ enum Direction
 	UP, DOWN
 };
 
+//Represents a 4 dimensional uint vector. Generally used to refer to positions in the map.
+//8 bytes.
 struct Index
 {
 	static Index fromIndex(size_t index, size_t width);
@@ -28,21 +31,24 @@ struct Index
 	boost::uint16_t w;
 };
 
+BOOST_STATIC_ASSERT(sizeof(Index) == 8);
 std::ostream& operator<<(std::ostream&, const Index&);
 
+
+//A portal between two blocks. Links start and start+direction.
 struct Portal
 {
 	Index start;
-	Direction direction;
-	size_t passibility;
-	size_t size;
+	boost::uint8_t direction;
+	boost::uint8_t passibility;
+	boost::uint8_t size;
 
 	bool operator==(const Portal& other) const;
 };
 
 std::ostream& operator<<(std::ostream&, const Portal&);
 
-//A node represents a path beteween two portals.
+//A node represents a path beteween two portals. Bidirectional.
 struct GraphVertex
 {
 	Portal start;
@@ -65,6 +71,10 @@ struct OriginAndGoal
 
 class Map
 {
+	//Private access for the pathfinding policies
+	friend struct PortalPathfindPolicy;
+	friend struct BlockFindPolicy;
+
 	//3 bits.
 	static const size_t MaximumWidth = 7;
 
@@ -107,7 +117,7 @@ private:
 
 	void innerblockPathfind(const Block& block);
 
-	size_t blockpathfind(size_t blockIndex, const Index& start, const Index& end, size_t size) const;
+	size_t blockpathfind(size_t blockIndex, const Index& start, const Index& end, size_t size, std::vector<Index> * path) const;
 
 	std::vector<boost::uint8_t> map;
 	std::vector<Block> blocks;
